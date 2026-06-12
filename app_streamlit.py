@@ -121,10 +121,10 @@ else:
 # LOAD EVALUATION RESULTS
 # =========================
 
-metrics_df = pd.DataFrame()
-
 if os.path.exists("model_results.csv"):
     metrics_df = pd.read_csv("model_results.csv")
+else:
+    metrics_df = pd.DataFrame()
 
 # =========================
 # MODEL TYPE
@@ -341,102 +341,69 @@ if menu == "Prediksi Harga":
 # =========================
 # EVALUATION PAGE (FIX FULL)
 # =========================
-elif menu == "Evaluasi Model":
-    st.title("📊 Evaluasi Model")
-
-    if not results_dict:
-        st.warning("⚠️ model_results.csv tidak ditemukan")
-        st.stop()
-
-    # =========================
-    # NORMALISASI NAMA KOLOM
-    # =========================
-    metrics_df.rename(columns={
-        "test_r2": "R²",
-        "R2": "R²",
-        "r2": "R²",
-
-        "test_mae": "MAE",
-        "mae": "MAE",
-        "MAE": "MAE",
-
-        "test_rmse": "RMSE",
-        "rmse": "RMSE",
-        "RMSE": "RMSE"
-    }, inplace=True)
-
-    # =========================
-    # KONVERSI KE NUMERIK
-    # =========================
-    for col in ["R²", "MAE", "RMSE"]:
-        if col in metrics_df.columns:
-            metrics_df[col] = pd.to_numeric(metrics_df[col], errors="coerce")
-
-    # =========================
-    # AMBIL KOLOM YANG ADA SAJA
-    # =========================
-    required_cols = ["Model", "R²", "MAE", "RMSE"]
-    available_cols = [col for col in required_cols if col in metrics_df.columns]
-    metrics_df = metrics_df[available_cols]
-
-    # =========================
-    # DISPLAY TABLE
-    # =========================
-    st.subheader("📌 Tabel Evaluasi Model")
-
-    metrics_show = metrics_df.copy()
-
-    if "R²" in metrics_show.columns:
+    elif menu == "Evaluasi Model":
+    
+        st.title("📊 Evaluasi Model")
+    
+        if metrics_df.empty:
+            st.warning("⚠️ model_results.csv tidak ditemukan")
+            st.stop()
+    
+        # Rename kolom
+        metrics_df = metrics_df.rename(columns={
+            "Unnamed: 0": "Model",
+            "R2": "R²"
+        })
+    
+        # Tabel
+        st.subheader("📌 Tabel Evaluasi Model")
+    
+        metrics_show = metrics_df.copy()
+    
         metrics_show["R²"] = metrics_show["R²"].round(4)
-
-    if "MAE" in metrics_show.columns:
         metrics_show["MAE"] = metrics_show["MAE"].apply(format_rupiah_adaptive)
-
-    if "RMSE" in metrics_show.columns:
         metrics_show["RMSE"] = metrics_show["RMSE"].apply(format_rupiah_adaptive)
-
-    st.dataframe(metrics_show, use_container_width=True)
-
-    # =========================
-    # VISUALISASI
-    # =========================
-    st.subheader("📊 Perbandingan Model")
-
-    plot_cols = [c for c in ["MAE", "RMSE"] if c in metrics_df.columns]
-
-    if plot_cols:
+    
+        st.dataframe(metrics_show, use_container_width=True)
+    
+        # Visualisasi
+        st.subheader("📊 Perbandingan Model")
+    
         fig = px.bar(
-            metrics_df.melt(id_vars="Model", value_vars=plot_cols),
+            metrics_df.melt(
+                id_vars="Model",
+                value_vars=["MAE", "RMSE"]
+            ),
             x="Model",
             y="value",
             color="variable",
             barmode="group",
             text_auto=True
         )
+    
         st.plotly_chart(fig, use_container_width=True)
-    else:
-        st.info("Data visualisasi tidak lengkap")
-
-    # =========================
-    # MODEL TERBAIK
-    # =========================
-    if "R²" in metrics_df.columns:
-        best_row = metrics_df.sort_values("R²", ascending=False).iloc[0]
-
-        st.success(f"""
-        🏆 Model Terbaik: {best_row['Model']}
-        
-        R² : {best_row['R²']:.4f}  
-        MAE : {format_rupiah_adaptive(best_row.get('MAE', 0))}  
-        RMSE : {format_rupiah_adaptive(best_row.get('RMSE', 0))}
-        """)
-    else:
-        st.warning("Kolom R² tidak ditemukan, tidak bisa menentukan model terbaik")
-
-    # =========================
-    # MODEL AKTIF
-    # =========================
-    st.info(f"Model yang digunakan di aplikasi: **{best_model_type}**")
+    
+        # Model terbaik
+        best_row = metrics_df.sort_values(
+            "R²",
+            ascending=False
+        ).iloc[0]
+    
+        st.success(
+            f"""
+    🏆 Model Terbaik: {best_row['Model']}
+    
+    R² : {best_row['R²']:.4f}
+    
+    MAE : {format_rupiah_adaptive(best_row['MAE'])}
+    
+    RMSE : {format_rupiah_adaptive(best_row['RMSE'])}
+    """
+        )
+    
+        st.info(
+            f"Model yang digunakan di aplikasi: **{best_model_type}**"
+        )
 
     # =========================
     # FEATURE IMPORTANCE
