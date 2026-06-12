@@ -6,10 +6,6 @@ import json
 import os
 import warnings
 
-st.write("sklearn :", sklearn.__version__)
-st.write("pandas :", pandas.__version__)
-st.write("tensorflow :", tensorflow.__version__)
-
 warnings.filterwarnings("ignore")
 os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
 
