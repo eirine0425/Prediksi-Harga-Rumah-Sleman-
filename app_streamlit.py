@@ -2,32 +2,37 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import joblib
-import json
 import os
 import warnings
-
-warnings.filterwarnings("ignore")
-os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
-
 import tensorflow as tf
-from tensorflow import keras
 import plotly.express as px
 
 from math import radians, sin, cos, sqrt, atan2
 
-# =============================
+warnings.filterwarnings("ignore")
+os.environ["TF_CPP_MIN_LOG_LEVEL"] = "3"
+
+# ====================================
+# CONFIG
+# ====================================
+
+st.set_page_config(
+    page_title="Prediksi Harga Rumah Sleman",
+    page_icon="🏠",
+    layout="wide"
+)
+
+# ====================================
 # TITIK REFERENSI
-# =============================
+# ====================================
 
 UGM = (-7.7705, 110.3772)
-
 MALIOBORO = (-7.7926, 110.3658)
-
 CITY_CENTER = (-7.7972, 110.3705)
 
-# =============================
+# ====================================
 # HAVERSINE
-# =============================
+# ====================================
 
 def haversine(lat1, lon1, lat2, lon2):
 
@@ -50,10 +55,71 @@ def haversine(lat1, lon1, lat2, lon2):
 
     return R * c
 
+# ====================================
+# FORMAT RUPIAH
+# ====================================
 
-# =============================
+def format_rupiah_adaptive(x):
+
+    try:
+
+        x = float(x)
+
+        if x >= 1_000_000_000:
+            return f"Rp {x/1_000_000_000:.2f} Miliar"
+
+        elif x >= 1_000_000:
+            return f"Rp {x/1_000_000:.2f} Juta"
+
+        else:
+            return f"Rp {x:,.0f}"
+
+    except:
+        return str(x)
+
+# ====================================
+# LOAD MODEL
+# ====================================
+
+@st.cache_resource
+def load_assets():
+
+    preprocessor = joblib.load("preprocessor.pkl")
+    model = joblib.load("best_model.pkl")
+
+    return preprocessor, model
+
+preprocessor, best_model = load_assets()
+
+best_model_type = type(best_model).__name__
+
+# ====================================
+# LOAD EVALUATION CSV
+# ====================================
+
+if os.path.exists("model_results.csv"):
+
+    metrics_df = pd.read_csv("model_results.csv")
+
+    if "Unnamed: 0" in metrics_df.columns:
+        metrics_df.rename(
+            columns={"Unnamed: 0": "Model"},
+            inplace=True
+        )
+
+    if "R2" in metrics_df.columns:
+        metrics_df.rename(
+            columns={"R2": "R²"},
+            inplace=True
+        )
+
+else:
+
+    metrics_df = pd.DataFrame()
+
+# ====================================
 # KOORDINAT LOKASI
-# =============================
+# ====================================
 
 location_coords = {
 
@@ -81,333 +147,16 @@ location_coords = {
     "Sidoarum, Sleman": (-7.7630, 110.3320)
 }
 
-# =========================
+# ====================================
 # SIDEBAR
-# =========================
+# ====================================
 
 st.sidebar.title("🏠 House Prediction App")
 
 menu = st.sidebar.radio(
     "Menu",
-    ["Prediksi Harga", "Evaluasi Model"]
+    [
+        "Prediksi Harga",
+        "Evaluasi Model"
+    ]
 )
-
-
-# =========================
-# LOAD MODEL & PREPROCESSOR
-# =========================
-
-@st.cache_resource
-def load_assets():
-
-    preprocessor = joblib.load("preprocessor.pkl")
-    model = joblib.load("best_model.pkl")
-
-    return preprocessor, model
-
-
-preprocessor, best_model = load_assets()
-
-best_model_type = type(best_model).__name__
-
-results_dict = {}
-
-if os.path.exists("model_results.csv"):
-    metrics_df = pd.read_csv("model_results.csv")
-else:
-    metrics_df = pd.DataFrame()
-
-# =========================
-# LOAD EVALUATION RESULTS
-# =========================
-
-if os.path.exists("model_results.csv"):
-    metrics_df = pd.read_csv("model_results.csv")
-else:
-    metrics_df = pd.DataFrame()
-
-# =========================
-# MODEL TYPE
-# =========================
-
-best_model_type = type(best_model).__name__
-
-# =========================
-# FORMAT RUPIAH
-# =========================
-
-def format_rupiah_adaptive(x):
-    try:
-        x = float(x)
-
-        if x >= 1_000_000_000:
-            return f"Rp {x/1_000_000_000:.2f} Miliar"
-        elif x >= 1_000_000:
-            return f"Rp {x/1_000_000:.2f} Juta"
-        else:
-            return f"Rp {x:,.0f}"
-
-    except:
-        return str(x)
-# =========================
-# PREDICTION PAGE
-# =========================
-if menu == "Prediksi Harga":
-
-    st.title("🏠 Prediksi Harga Rumah Sleman")
-    st.write("Isi karakteristik rumah untuk memprediksi harga rumah")
-
-    col1, col2 = st.columns(2)
-
-    with col1:
-
-        bed = st.number_input(
-            "Jumlah Kamar Tidur",
-            min_value=0,
-            max_value=20,
-            value=0
-        )
-
-        bath = st.number_input(
-            "Jumlah Kamar Mandi",
-            min_value=0,
-            max_value=20,
-            value=0
-        )
-
-        carport = st.number_input(
-            "Jumlah Carport",
-            min_value=0,
-            max_value=10,
-            value=0
-        )
-
-        surface_area = st.number_input(
-            "Luas Tanah (m²)",
-            min_value=0,
-            value=0
-        )
-
-        building_area = st.number_input(
-            "Luas Bangunan (m²)",
-            min_value=0,
-            value=0
-        )
-
-    with col2:
-
-        location_options = ["Pilih Lokasi Rumah"] + list(location_coords.keys())
-
-        listing_location = st.selectbox(
-            "📍 Lokasi Rumah",
-            location_options,
-            index=0
-        )
-
-        if listing_location != "Pilih Lokasi Rumah":
-
-            latitude, longitude = location_coords[listing_location]
-
-            dist_ugm = haversine(
-                latitude,
-                longitude,
-                UGM[0],
-                UGM[1]
-            )
-
-            dist_malioboro = haversine(
-                latitude,
-                longitude,
-                MALIOBORO[0],
-                MALIOBORO[1]
-            )
-
-            dist_city_center = haversine(
-                latitude,
-                longitude,
-                CITY_CENTER[0],
-                CITY_CENTER[1]
-            )
-
-            st.info(
-                f"""
-    📍 Informasi Lokasi
-
-    • Jarak ke UGM : ± {dist_ugm:.1f} km
-
-    • Jarak ke Malioboro : ± {dist_malioboro:.1f} km
-
-    • Jarak ke Pusat Kota : ± {dist_city_center:.1f} km
-    """
-                )
-    if st.button("Predict", use_container_width=True):
-
-        try:
-
-            if (
-                listing_location == "Pilih Lokasi Rumah"
-                or bed <= 0
-                or bath <= 0
-                or surface_area <= 0
-                or building_area <= 0
-            ):
-                st.warning(
-                    "⚠️ Silakan lengkapi seluruh data rumah terlebih dahulu sebelum melakukan prediksi."
-                )
-                st.stop()
-
-            latitude, longitude = location_coords[
-                listing_location
-            ]
-
-            dist_ugm = haversine(
-                latitude,
-                longitude,
-                UGM[0],
-                UGM[1]
-            )
-
-            dist_malioboro = haversine(
-                latitude,
-                longitude,
-                MALIOBORO[0],
-                MALIOBORO[1]
-            )
-
-            dist_city_center = haversine(
-                latitude,
-                longitude,
-                CITY_CENTER[0],
-                CITY_CENTER[1]
-            )
-
-            input_df = pd.DataFrame([{
-                "listing-location": listing_location,
-                "bed": bed,
-                "bath": bath,
-                "carport": carport,
-                "surface_area": surface_area,
-                "building_area": building_area,
-                "latitude": latitude,
-                "longitude": longitude,
-                "dist_ugm": dist_ugm,
-                "dist_malioboro": dist_malioboro,
-                "dist_city_center": dist_city_center
-            }])
-
-            st.subheader("📋 Data Input")
-            st.dataframe(input_df)
-
-            X_processed = preprocessor.transform(input_df)
-
-            if hasattr(X_processed, "toarray"):
-                X_processed = X_processed.toarray()
-            
-            if isinstance(best_model, tf.keras.Model):
-            
-                pred = best_model.predict(
-                    X_processed,
-                    verbose=0
-                ).flatten()[0]
-            
-            else:
-            
-                pred = best_model.predict(
-                    X_processed
-                )[0]
-
-            pred = np.expm1(pred)
-            pred = max(float(pred), 0)
-
-            st.markdown(
-                f"""
-                <div style="
-                    padding:25px;
-                    border-radius:15px;
-                    text-align:center;
-                    background:linear-gradient(135deg,#667eea,#764ba2);
-                    color:white;
-                ">
-                    <h2>💰 Predicted House Price</h2>
-                    <h1>{format_rupiah_adaptive(pred)}</h1>
-                </div>
-                """,
-                unsafe_allow_html=True
-            )
-
-        except Exception as e:
-            st.error(f"❌ Prediction Error: {e}")
-
-# =========================
-# EVALUATION PAGE (FIX FULL)
-# =========================
-    elif menu == "Evaluasi Model":
-    
-        st.title("📊 Evaluasi Model")
-    
-        if metrics_df.empty:
-            st.warning("⚠️ model_results.csv tidak ditemukan")
-            st.stop()
-    
-        # Rename kolom
-        metrics_df = metrics_df.rename(columns={
-            "Unnamed: 0": "Model",
-            "R2": "R²"
-        })
-    
-        # Tabel
-        st.subheader("📌 Tabel Evaluasi Model")
-    
-        metrics_show = metrics_df.copy()
-    
-        metrics_show["R²"] = metrics_show["R²"].round(4)
-        metrics_show["MAE"] = metrics_show["MAE"].apply(format_rupiah_adaptive)
-        metrics_show["RMSE"] = metrics_show["RMSE"].apply(format_rupiah_adaptive)
-    
-        st.dataframe(metrics_show, use_container_width=True)
-    
-        # Visualisasi
-        st.subheader("📊 Perbandingan Model")
-    
-        fig = px.bar(
-            metrics_df.melt(
-                id_vars="Model",
-                value_vars=["MAE", "RMSE"]
-            ),
-            x="Model",
-            y="value",
-            color="variable",
-            barmode="group",
-            text_auto=True
-        )
-    
-        st.plotly_chart(fig, use_container_width=True)
-    
-        # Model terbaik
-        best_row = metrics_df.sort_values(
-            "R²",
-            ascending=False
-        ).iloc[0]
-    
-        st.success(
-            f"""
-    🏆 Model Terbaik: {best_row['Model']}
-    
-    R² : {best_row['R²']:.4f}
-    
-    MAE : {format_rupiah_adaptive(best_row['MAE'])}
-    
-    RMSE : {format_rupiah_adaptive(best_row['RMSE'])}
-    """
-        )
-    
-        st.info(
-            f"Model yang digunakan di aplikasi: **{best_model_type}**"
-        )
-
-    # =========================
-    # FEATURE IMPORTANCE
-    # =========================
-    if hasattr(best_model, "feature_importances_"):
-        st.subheader("🔍 Feature Importance")
-        st.bar_chart(best_model.feature_importances_)
