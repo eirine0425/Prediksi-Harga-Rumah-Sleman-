@@ -101,12 +101,40 @@ menu = st.sidebar.radio(
 def load_assets():
 
     preprocessor = joblib.load("preprocessor.pkl")
-
     model = joblib.load("best_model.pkl")
 
     return preprocessor, model
 
+
 preprocessor, best_model = load_assets()
+
+best_model_type = type(best_model).__name__
+
+results_dict = {}
+
+if os.path.exists("model_results.json"):
+    with open("model_results.json", "r") as f:
+        results_dict = json.load(f)
+
+# =========================
+# LOAD EVALUATION RESULTS
+# =========================
+
+results_dict = {}
+
+if os.path.exists("model_results.json"):
+    with open("model_results.json", "r") as f:
+        results_dict = json.load(f)
+
+# =========================
+# MODEL TYPE
+# =========================
+
+best_model_type = type(best_model).__name__
+
+# =========================
+# FORMAT RUPIAH
+# =========================
 
 def format_rupiah_adaptive(x):
     try:
@@ -270,22 +298,22 @@ if menu == "Prediksi Harga":
             st.subheader("📋 Data Input")
             st.dataframe(input_df)
 
+            X_processed = preprocessor.transform(input_df)
+
+            if hasattr(X_processed, "toarray"):
+                X_processed = X_processed.toarray()
+            
             if isinstance(best_model, tf.keras.Model):
-
-                X_processed = preprocessor.transform(input_df)
-
-                if hasattr(X_processed, "toarray"):
-                    X_processed = X_processed.toarray()
-
+            
                 pred = best_model.predict(
                     X_processed,
                     verbose=0
                 ).flatten()[0]
-
+            
             else:
-
+            
                 pred = best_model.predict(
-                    input_df
+                    X_processed
                 )[0]
 
             pred = np.expm1(pred)
