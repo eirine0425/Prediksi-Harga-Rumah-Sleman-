@@ -121,6 +121,17 @@ def format_rupiah_adaptive(x):
 
     except:
         return str(x)
+
+# =========================
+# LOAD EVALUATION RESULTS
+# =========================
+
+results_dict = {}
+
+if os.path.exists("model_results.json"):
+    with open("model_results.json", "r") as f:
+        results_dict = json.load(f)
+        
 # =========================
 # PREDICTION PAGE
 # =========================
