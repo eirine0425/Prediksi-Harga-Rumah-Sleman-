@@ -112,19 +112,19 @@ best_model_type = type(best_model).__name__
 
 results_dict = {}
 
-if os.path.exists("model_results.json"):
-    with open("model_results.json", "r") as f:
-        results_dict = json.load(f)
+if os.path.exists("model_results.csv"):
+    metrics_df = pd.read_csv("model_results.csv")
+else:
+    metrics_df = pd.DataFrame()
 
 # =========================
 # LOAD EVALUATION RESULTS
 # =========================
 
-results_dict = {}
+metrics_df = pd.DataFrame()
 
-if os.path.exists("model_results.json"):
-    with open("model_results.json", "r") as f:
-        results_dict = json.load(f)
+if os.path.exists("model_results.csv"):
+    metrics_df = pd.read_csv("model_results.csv")
 
 # =========================
 # MODEL TYPE
@@ -345,14 +345,8 @@ elif menu == "Evaluasi Model":
     st.title("📊 Evaluasi Model")
 
     if not results_dict:
-        st.warning("⚠️ model_results.json tidak ditemukan")
+        st.warning("⚠️ model_results.csv tidak ditemukan")
         st.stop()
-
-    # =========================
-    # LOAD DATAFRAME
-    # =========================
-    metrics_df = pd.DataFrame(results_dict).T.reset_index()
-    metrics_df.rename(columns={"index": "Model"}, inplace=True)
 
     # =========================
     # NORMALISASI NAMA KOLOM
