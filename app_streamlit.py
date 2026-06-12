@@ -423,11 +423,6 @@ elif menu == "Evaluasi Model":
         st.warning("Kolom R² tidak ditemukan, tidak bisa menentukan model terbaik")
 
     # =========================
-    # MODEL AKTIF
-    # =========================
-    st.info(f"Model yang digunakan di aplikasi: **{best_model_type}**")
-
-    # =========================
     # FEATURE IMPORTANCE
     # =========================
     if hasattr(best_model, "feature_importances_"):
